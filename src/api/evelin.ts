@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import type { Sinistro } from '../types/sinistro'
 import { tipoLabel, statusLabel, formatDate, formatCurrency } from '../utils/format'
 
-const client = new Anthropic({
-  apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
+const client = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
 })
 
@@ -61,19 +61,18 @@ export async function* streamEvelinResponse(
   sinistro: Sinistro,
   messages: EvelinMessage[],
 ): AsyncGenerator<string> {
-  const stream = await client.messages.stream({
-    model: 'claude-sonnet-4-6',
+  const stream = await client.chat.completions.create({
+    model: 'gpt-4o',
     max_tokens: 1024,
-    system: buildSystemPrompt(sinistro),
-    messages,
+    stream: true,
+    messages: [
+      { role: 'system', content: buildSystemPrompt(sinistro) },
+      ...messages,
+    ],
   })
 
-  for await (const event of stream) {
-    if (
-      event.type === 'content_block_delta' &&
-      event.delta.type === 'text_delta'
-    ) {
-      yield event.delta.text
-    }
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content
+    if (text) yield text
   }
 }
